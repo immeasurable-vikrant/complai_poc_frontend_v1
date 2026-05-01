@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>ComplAI — Invoice Extraction POC</title>
+		<style>
+			/* ── Reset + Base ── */
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family:
+					system-ui,
+					-apple-system,
+					sans-serif;
+				background: #f4f3f0;
+				color: #2c2c2a;
+				font-size: 14px;
+			}
+			input,
+			select,
+			textarea,
+			button {
+				font-family: inherit;
+				font-size: inherit;
+			}
+
+			/* ── Layout ── */
+			.app {
+				display: flex;
+				flex-direction: column;
+				min-height: 100vh;
+			}
+			.header {
+				background: #1f3864;
+				color: #fff;
+				padding: 14px 24px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+			}
+			.header h1 {
+				font-size: 20px;
+				font-weight: 600;
+				letter-spacing: 0.02em;
+			}
+			.header .sub {
+				font-size: 12px;
+				opacity: 0.7;
+				margin-top: 2px;
+			}
+			.tabs {
+				display: flex;
+				gap: 0;
+				background: #2e75b6;
+				padding: 0 24px;
+			}
+			.tab {
+				padding: 10px 20px;
+				color: rgba(255, 255, 255, 0.7);
+				cursor: pointer;
+				border-bottom: 3px solid transparent;
+				font-size: 13px;
+				transition: 0.15s;
+			}
+			.tab.active {
+				color: #fff;
+				border-bottom-color: #fff;
+				font-weight: 500;
+			}
+			.main {
+				flex: 1;
+				padding: 24px;
+				max-width: 1200px;
+				margin: 0 auto;
+				width: 100%;
+			}
+
+			/* ── Token Bar ── */
+			.token-bar {
+				background: #fff;
+				border: 1px solid #e0deda;
+				border-radius: 8px;
+				padding: 12px 16px;
+				margin-bottom: 16px;
+				display: flex;
+				align-items: center;
+				gap: 16px;
+				flex-wrap: wrap;
+			}
+			.token-bar .label {
+				font-size: 12px;
+				color: #888780;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+			}
+			.token-bar .val {
+				font-weight: 600;
+				font-size: 14px;
+			}
+			.token-bar .budget-bar {
+				flex: 1;
+				min-width: 120px;
+				height: 6px;
+				background: #e0deda;
+				border-radius: 3px;
+				overflow: hidden;
+			}
+			.token-bar .budget-fill {
+				height: 100%;
+				border-radius: 3px;
+				transition: width 0.5s;
+			}
+			.token-bar .green {
+				background: #0f6e56;
+			}
+			.token-bar .amber {
+				background: #c65c00;
+			}
+			.token-bar .red {
+				background: #8b0000;
+			}
+
+			/* ── Upload Zone ── */
+			.upload-zone {
+				border: 2px dashed #b4b2a9;
+				border-radius: 12px;
+				padding: 40px;
+				text-align: center;
+				cursor: pointer;
+				transition: 0.15s;
+				background: #fff;
+				margin-bottom: 16px;
+			}
+			.upload-zone:hover,
+			.upload-zone.drag {
+				border-color: #2e75b6;
+				background: #eef4fb;
+			}
+			.upload-zone .icon {
+				font-size: 40px;
+				margin-bottom: 12px;
+			}
+			.upload-zone p {
+				color: #5f5e5a;
+				font-size: 13px;
+			}
+			.upload-zone strong {
+				color: #2e75b6;
+			}
+			#file-input {
+				display: none;
+			}
+
+			/* ── Progress ── */
+			.progress-wrap {
+				background: #fff;
+				border: 1px solid #e0deda;
+				border-radius: 8px;
+				padding: 16px;
+				margin-bottom: 16px;
+			}
+			.progress-label {
+				font-size: 12px;
+				color: #5f5e5a;
+				margin-bottom: 8px;
+			}
+			.progress-bar {
+				height: 8px;
+				background: #e0deda;
+				border-radius: 4px;
+				overflow: hidden;
+			}
+			.progress-fill {
+				height: 100%;
+				background: #2e75b6;
+				border-radius: 4px;
+				transition: width 0.4s;
+			}
+			.status-text {
+				font-size: 12px;
+				color: #888780;
+				margin-top: 6px;
+			}
+
+			/* ── Invoice Cards ── */
+			.section-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 12px;
+			}
+			.section-header h2 {
+				font-size: 16px;
+				font-weight: 600;
+			}
+			.export-btns {
+				display: flex;
+				gap: 8px;
+			}
+			.btn {
+				padding: 8px 16px;
+				border-radius: 6px;
+				border: none;
+				cursor: pointer;
+				font-size: 13px;
+				font-weight: 500;
+				transition: 0.15s;
+			}
+			.btn-primary {
+				background: #2e75b6;
+				color: #fff;
+			}
+			.btn-primary:hover {
+				background: #1f5490;
+			}
+			.btn-tally {
+				background: #1f3864;
+				color: #fff;
+			}
+			.btn-tally:hover {
+				background: #152847;
+			}
+			.btn-busy {
+				background: #0f6e56;
+				color: #fff;
+			}
+			.btn-busy:hover {
+				background: #0a4d3c;
+			}
+			.btn-sm {
+				padding: 4px 10px;
+				font-size: 12px;
+			}
+			.btn-ghost {
+				background: transparent;
+				border: 1px solid #b4b2a9;
+				color: #444441;
+			}
+			.btn-ghost:hover {
+				background: #f1efe8;
+			}
+
+			.invoice-card {
+				background: #fff;
+				border: 1px solid #e0deda;
+				border-radius: 8px;
+				margin-bottom: 12px;
+				overflow: hidden;
+			}
+			.invoice-card.needs-review {
+				border-color: #ef9f27;
+				border-left: 4px solid #ef9f27;
+			}
+			.invoice-card.reviewed {
+				border-left: 4px solid #0f6e56;
+			}
+			.card-header {
+				padding: 12px 16px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				cursor: pointer;
+				user-select: none;
+			}
+			.card-header:hover {
+				background: #fafaf8;
+			}
+			.card-title {
+				font-weight: 600;
+				font-size: 14px;
+			}
+			.card-meta {
+				font-size: 12px;
+				color: #888780;
+				margin-top: 2px;
+			}
+			.badge {
+				display: inline-block;
+				border-radius: 12px;
+				padding: 2px 8px;
+				font-size: 11px;
+				font-weight: 500;
+			}
+			.badge-review {
+				background: #fff2cc;
+				color: #7d4e00;
+			}
+			.badge-ok {
+				background: #e2efda;
+				color: #173404;
+			}
+			.badge-reviewed {
+				background: #daeef5;
+				color: #0a3a4a;
+			}
+			.conf-bar {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				font-size: 11px;
+				color: #888780;
+			}
+			.conf-fill-wrap {
+				width: 60px;
+				height: 4px;
+				background: #e0deda;
+				border-radius: 2px;
+				overflow: hidden;
+			}
+			.conf-fill {
+				height: 100%;
+				border-radius: 2px;
+			}
+
+			.card-body {
+				padding: 16px;
+				border-top: 1px solid #f0ede8;
+				display: none;
+			}
+			.card-body.open {
+				display: block;
+			}
+
+			/* ── Editable Fields Grid ── */
+			.fields-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+				gap: 12px;
+				margin-bottom: 16px;
+			}
+			.field-group {
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+			}
+			.field-group label {
+				font-size: 11px;
+				color: #888780;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+			}
+			.field-group input,
+			.field-group select {
+				padding: 6px 10px;
+				border: 1px solid #d3d1c7;
+				border-radius: 6px;
+				background: #fafaf8;
+				transition: 0.15s;
+			}
+			.field-group input:focus,
+			.field-group select:focus {
+				outline: none;
+				border-color: #2e75b6;
+				background: #fff;
+			}
+			.field-group input.error {
+				border-color: #8b0000;
+				background: #fff5f5;
+			}
+			.field-group .hint {
+				font-size: 10px;
+				color: #c65c00;
+			}
+
+			/* ── Line Items Table ── */
+			.line-items {
+				margin-bottom: 12px;
+			}
+			.line-items table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 12px;
+			}
+			.line-items th {
+				background: #f1efe8;
+				padding: 6px 8px;
+				text-align: left;
+				font-weight: 500;
+				color: #5f5e5a;
+				border-bottom: 1px solid #e0deda;
+			}
+			.line-items td {
+				padding: 6px 8px;
+				border-bottom: 1px solid #f0ede8;
+			}
+			.line-items td input {
+				width: 100%;
+				border: 1px solid transparent;
+				background: transparent;
+				padding: 2px 4px;
+				border-radius: 4px;
+			}
+			.line-items td input:focus {
+				border-color: #2e75b6;
+				background: #fff;
+				outline: none;
+			}
+
+			/* ── Issues ── */
+			.issues {
+				margin-top: 8px;
+			}
+			.issue-item {
+				background: #fff5f5;
+				border-left: 3px solid #8b0000;
+				padding: 6px 10px;
+				border-radius: 0 4px 4px 0;
+				font-size: 12px;
+				color: #8b0000;
+				margin-bottom: 4px;
+			}
+
+			/* ── Bank Statement ── */
+			.bank-meta {
+				background: #eef4fb;
+				border-radius: 8px;
+				padding: 12px 16px;
+				margin-bottom: 16px;
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+				gap: 8px;
+			}
+			.bank-meta .m-label {
+				font-size: 11px;
+				color: #888780;
+			}
+			.bank-meta .m-val {
+				font-size: 14px;
+				font-weight: 600;
+			}
+			.bank-summary {
+				display: flex;
+				gap: 12px;
+				margin-bottom: 12px;
+			}
+			.bank-summary .s-box {
+				flex: 1;
+				background: #fff;
+				border-radius: 8px;
+				padding: 12px;
+				border: 1px solid #e0deda;
+				text-align: center;
+			}
+			.bank-summary .s-label {
+				font-size: 11px;
+				color: #888780;
+			}
+			.bank-summary .s-val {
+				font-size: 18px;
+				font-weight: 700;
+				margin-top: 4px;
+			}
+			.s-val.credit {
+				color: #0f6e56;
+			}
+			.s-val.debit {
+				color: #8b0000;
+			}
+
+			.tx-table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 12px;
+				background: #fff;
+				border-radius: 8px;
+				overflow: hidden;
+				border: 1px solid #e0deda;
+			}
+			.tx-table th {
+				background: #f1efe8;
+				padding: 8px 10px;
+				text-align: left;
+				font-weight: 500;
+				position: sticky;
+				top: 0;
+			}
+			.tx-table td {
+				padding: 6px 10px;
+				border-bottom: 1px solid #f0ede8;
+			}
+			.tx-table tr:hover td {
+				background: #fafaf8;
+			}
+			.tx-table .credit-row td {
+				background: #f0faf5;
+			}
+			.tx-table .debit-row td {
+				background: #fff5f5;
+			}
+			.tx-wrap {
+				max-height: 500px;
+				overflow-y: auto;
+				border-radius: 8px;
+			}
+
+			/* ── Empty State ── */
+			.empty {
+				text-align: center;
+				padding: 60px 20px;
+				color: #888780;
+			}
+			.empty .e-icon {
+				font-size: 48px;
+				margin-bottom: 12px;
+			}
+
+			/* ── Toast ── */
+			.toast {
+				position: fixed;
+				bottom: 24px;
+				right: 24px;
+				background: #2c2c2a;
+				color: #fff;
+				padding: 10px 18px;
+				border-radius: 8px;
+				font-size: 13px;
+				opacity: 0;
+				transition: 0.3s;
+				pointer-events: none;
+				z-index: 999;
+			}
+			.toast.show {
+				opacity: 1;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="app">
+			<!-- Header -->
+			<div class="header">
+				<div>
+					<h1>ComplAI</h1>
+					<div class="sub">Invoice Extraction POC — Design Partner Testing</div>
+				</div>
+			</div>
+
+			<!-- Tabs -->
+			<div class="tabs">
+				<div class="tab active" onclick="switchTab('invoices')">
+					📄 Invoices
+				</div>
+				<div class="tab" onclick="switchTab('bank')">🏦 Bank Statement</div>
+			</div>
+
+			<div class="main">
+				<!-- Token Usage Bar -->
+				<div class="token-bar" id="token-bar">
+					<div>
+						<div class="label">Tokens Used</div>
+						<div class="val" id="tok-total">—</div>
+					</div>
+					<div>
+						<div class="label">API Cost</div>
+						<div class="val" id="tok-cost">—</div>
+					</div>
+					<div>
+						<div class="label">Budget Left</div>
+						<div class="val" id="tok-remaining">—</div>
+					</div>
+					<div style="flex: 1">
+						<div class="label" style="margin-bottom: 4px">Budget ($5)</div>
+						<div class="budget-bar">
+							<div
+								class="budget-fill green"
+								id="budget-fill"
+								style="width: 100%"
+							></div>
+						</div>
+					</div>
+					<button class="btn btn-ghost btn-sm" onclick="resetTokens()">
+						Reset
+					</button>
+				</div>
+
+				<!-- ── INVOICE TAB ── -->
+				<div id="tab-invoices">
+					<!-- Upload -->
+					<div
+						class="upload-zone"
+						id="upload-zone"
+						onclick="document.getElementById('file-input').click()"
+						ondragover="
+							event.preventDefault();
+							this.classList.add('drag');
+						"
+						ondragleave="this.classList.remove('drag')"
+						ondrop="handleDrop(event)"
+					>
+						<div class="icon">📂</div>
+						<p><strong>Click to upload</strong> or drag & drop</p>
+						<p style="margin-top: 6px">
+							PDF (multi-page ok), JPG, PNG — invoices from WhatsApp, email,
+							scanner
+						</p>
+						<p style="margin-top: 6px; font-size: 11px; color: #aaa">
+							Processed in chunks of 4 pages — no API timeout
+						</p>
+					</div>
+					<input
+						type="file"
+						id="file-input"
+						accept=".pdf,.jpg,.jpeg,.png,.heic"
+						onchange="uploadInvoice(this.files[0])"
+					/>
+
+					<!-- Progress -->
+					<div class="progress-wrap" id="progress-wrap" style="display: none">
+						<div class="progress-label">
+							Processing <span id="prog-file"></span>
+						</div>
+						<div class="progress-bar">
+							<div
+								class="progress-fill"
+								id="progress-fill"
+								style="width: 0%"
+							></div>
+						</div>
+						<div class="status-text" id="status-text">Queued...</div>
+					</div>
+
+					<!-- Results -->
+					<div id="invoice-results" style="display: none">
+						<div class="section-header">
+							<h2>Extracted Invoices (<span id="inv-count">0</span>)</h2>
+							<div class="export-btns">
+								<button class="btn btn-tally" onclick="exportTally()">
+									⬇ Tally XML
+								</button>
+								<button class="btn btn-busy" onclick="exportBusy()">
+									⬇ Busy Excel
+								</button>
+							</div>
+						</div>
+						<div id="invoice-list"></div>
+					</div>
+
+					<div class="empty" id="inv-empty">
+						<div class="e-icon">🧾</div>
+						<p>Upload a PDF or image to extract invoice data</p>
+					</div>
+				</div>
+
+				<!-- ── BANK TAB ── -->
+				<div id="tab-bank" style="display: none">
+					<div
+						class="upload-zone"
+						onclick="document.getElementById('bank-input').click()"
+					>
+						<div class="icon">🏦</div>
+						<p><strong>Upload bank statement</strong> — PDF or image</p>
+						<p style="margin-top: 6px; font-size: 11px; color: #aaa">
+							Extracts all transactions, credits, debits, balances
+						</p>
+					</div>
+					<input
+						type="file"
+						id="bank-input"
+						accept=".pdf,.jpg,.jpeg,.png"
+						onchange="uploadBank(this.files[0])"
+						style="display: none"
+					/>
+
+					<div class="progress-wrap" id="bank-progress" style="display: none">
+						<div class="progress-label">Processing bank statement</div>
+						<div class="progress-bar">
+							<div class="progress-fill" id="bank-fill" style="width: 0%"></div>
+						</div>
+						<div class="status-text" id="bank-status">Queued...</div>
+					</div>
+
+					<div id="bank-results" style="display: none">
+						<div class="section-header">
+							<h2>Bank Transactions (<span id="tx-count">0</span>)</h2>
+							<button class="btn btn-busy" onclick="exportBank()">
+								⬇ Download Excel
+							</button>
+						</div>
+						<div class="bank-meta" id="bank-meta"></div>
+						<div class="bank-summary" id="bank-summary"></div>
+						<div class="tx-wrap">
+							<table class="tx-table" id="tx-table">
+								<thead>
+									<tr>
+										<th>Date</th>
+										<th>Narration</th>
+										<th>Mode</th>
+										<th>Reference</th>
+										<th>Debit (₹)</th>
+										<th>Credit (₹)</th>
+										<th>Balance (₹)</th>
+									</tr>
+								</thead>
+								<tbody id="tx-body"></tbody>
+							</table>
+						</div>
+					</div>
+
+					<div class="empty" id="bank-empty">
+						<div class="e-icon">🏦</div>
+						<p>Upload a bank statement PDF or image</p>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="toast" id="toast"></div>
+
+		<script>
+			// ── Config ──────────────────────────────────────────────────────────────────
+			const API = 'http://localhost:8000/api';
+			let currentJobId = null;
+			let currentInvoices = [];
+			let bankJobId = null;
+			let bankData = null;
+
+			// ── Tabs ────────────────────────────────────────────────────────────────────
+			function switchTab(tab) {
+				document
+					.querySelectorAll('.tab')
+					.forEach((t, i) =>
+						t.classList.toggle('active', i === (tab === 'invoices' ? 0 : 1)),
+					);
+				document.getElementById('tab-invoices').style.display =
+					tab === 'invoices' ? '' : 'none';
+				document.getElementById('tab-bank').style.display =
+					tab === 'bank' ? '' : 'none';
+			}
+
+			// ── Token Bar ────────────────────────────────────────────────────────────────
+			let tokenRefreshInFlight = false;
+			let tokenPollTimer = null;
+
+			async function refreshTokens() {
+				if (tokenRefreshInFlight) return;
+				tokenRefreshInFlight = true;
+				try {
+					const controller = new AbortController();
+					const timeout = setTimeout(() => controller.abort(), 4000);
+					const r = await fetch(`${API}/tokens/`, { signal: controller.signal });
+					clearTimeout(timeout);
+					if (!r.ok) throw new Error(`HTTP ${r.status}`);
+					const d = await r.json();
+					document.getElementById('tok-total').textContent =
+						d.total_tokens.toLocaleString();
+					document.getElementById('tok-cost').textContent = `$${d.cost_usd}`;
+					document.getElementById('tok-remaining').textContent =
+						`$${d.remaining_usd}`;
+					const fill = document.getElementById('budget-fill');
+					fill.style.width = d.remaining_pct + '%';
+					fill.className =
+						'budget-fill ' +
+						(d.remaining_pct > 50
+							? 'green'
+							: d.remaining_pct > 20
+								? 'amber'
+								: 'red');
+				} catch (e) {
+					document.getElementById('tok-total').textContent = 'Offline';
+					document.getElementById('tok-cost').textContent = '—';
+					document.getElementById('tok-remaining').textContent = '—';
+					const fill = document.getElementById('budget-fill');
+					fill.style.width = '0%';
+					fill.className = 'budget-fill red';
+				} finally {
+					tokenRefreshInFlight = false;
+				}
+			}
+			function scheduleTokenRefresh(delay = 5000) {
+				clearTimeout(tokenPollTimer);
+				tokenPollTimer = setTimeout(async () => {
+					await refreshTokens();
+					scheduleTokenRefresh();
+				}, delay);
+			}
+			async function resetTokens() {
+				await fetch(`${API}/tokens/reset`, { method: 'POST' });
+				refreshTokens();
+				showToast('Token counter reset');
+			}
+			refreshTokens().finally(() => scheduleTokenRefresh());
+
+			// ── Drag & Drop ──────────────────────────────────────────────────────────────
+			function handleDrop(e) {
+				e.preventDefault();
+				document.getElementById('upload-zone').classList.remove('drag');
+				const f = e.dataTransfer.files[0];
+				if (f) uploadInvoice(f);
+			}
+
+			// ── Invoice Upload ────────────────────────────────────────────────────────────
+			async function uploadInvoice(file) {
+				if (!file) return;
+				const fd = new FormData();
+				fd.append('file', file);
+
+				document.getElementById('progress-wrap').style.display = '';
+				document.getElementById('invoice-results').style.display = 'none';
+				document.getElementById('inv-empty').style.display = 'none';
+				document.getElementById('prog-file').textContent = file.name;
+				document.getElementById('progress-fill').style.width = '5%';
+				document.getElementById('status-text').textContent = 'Uploading...';
+
+				try {
+					const r = await fetch(`${API}/extract/upload`, {
+						method: 'POST',
+						body: fd,
+					});
+					const d = await r.json();
+					currentJobId = d.job_id;
+					pollJob();
+				} catch (e) {
+					showToast('Upload failed: ' + e.message, true);
+				}
+			}
+
+			// Poll every 3 seconds until done
+			async function pollJob() {
+				if (!currentJobId) return;
+				try {
+					const r = await fetch(`${API}/extract/status/${currentJobId}`);
+					const d = await r.json();
+
+					const pct =
+						d.total_chunks > 0
+							? Math.round((d.chunks_done / d.total_chunks) * 90) + 5
+							: 10;
+					document.getElementById('progress-fill').style.width = pct + '%';
+					document.getElementById('status-text').textContent =
+						d.status === 'processing'
+							? `Processing chunk ${d.chunks_done} of ${d.total_chunks}...`
+							: d.status === 'queued'
+								? 'Queued, starting...'
+								: d.status;
+
+					if (d.status === 'done') {
+						await loadResults();
+						refreshTokens();
+					} else if (d.status === 'error') {
+						showToast('Error: ' + d.error, true);
+						document.getElementById('progress-wrap').style.display = 'none';
+					} else {
+						setTimeout(pollJob, 3000);
+					}
+				} catch (e) {
+					setTimeout(pollJob, 3000);
+				}
+			}
+
+			async function loadResults() {
+				const r = await fetch(`${API}/extract/result/${currentJobId}`);
+				const d = await r.json();
+				currentInvoices = d.invoices;
+				renderInvoices(currentInvoices);
+				document.getElementById('progress-fill').style.width = '100%';
+				document.getElementById('status-text').textContent =
+					`Done — ${currentInvoices.length} invoice(s) extracted`;
+				setTimeout(
+					() =>
+						(document.getElementById('progress-wrap').style.display = 'none'),
+					2000,
+				);
+				document.getElementById('invoice-results').style.display = '';
+				document.getElementById('inv-count').textContent =
+					currentInvoices.length;
+			}
+
+			// ── Render Invoices ───────────────────────────────────────────────────────────
+			function renderInvoices(invoices) {
+				const list = document.getElementById('invoice-list');
+				list.innerHTML = '';
+
+				invoices.forEach((inv, idx) => {
+					const needsReview = inv.needs_review;
+					const wasReviewed = inv.human_reviewed;
+					const conf = Math.round((inv.combined_confidence || 0) * 100);
+					const confColor =
+						conf >= 75 ? '#0F6E56' : conf >= 50 ? '#C65C00' : '#8B0000';
+
+					const card = document.createElement('div');
+					card.className =
+						'invoice-card' +
+						(wasReviewed ? ' reviewed' : needsReview ? ' needs-review' : '');
+					card.id = `card-${idx}`;
+
+					card.innerHTML = `
+      <div class="card-header" onclick="toggleCard(${idx})">
+        <div>
+          <div class="card-title">${inv.vendor_name || 'Unknown Vendor'} — ${inv.invoice_number || 'No Invoice No.'}</div>
+          <div class="card-meta">
+            📅 ${inv.invoice_date || '?'} &nbsp;|&nbsp;
+            ₹ ${fmt(inv.invoice_total)} &nbsp;|&nbsp;
+            Pages: ${inv.source_pages}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="conf-bar">
+            <span>${conf}%</span>
+            <div class="conf-fill-wrap"><div class="conf-fill" style="width:${conf}%;background:${confColor}"></div></div>
+          </div>
+          ${
+						wasReviewed
+							? '<span class="badge badge-reviewed">✓ Reviewed</span>'
+							: needsReview
+								? '<span class="badge badge-review">⚠ Review needed</span>'
+								: '<span class="badge badge-ok">✓ Auto-accepted</span>'
+					}
+          <span>▾</span>
+        </div>
+      </div>
+      <div class="card-body" id="body-${idx}">
+        ${renderFields(inv, idx)}
+        ${renderLineItems(inv, idx)}
+        ${renderIssues(inv)}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+          <button class="btn btn-ghost btn-sm" onclick="markReviewed(${idx})">✓ Mark reviewed</button>
+          <button class="btn btn-primary btn-sm" onclick="saveEdits(${idx})">💾 Save edits</button>
+        </div>
+      </div>
+    `;
+					list.appendChild(card);
+				});
+			}
+
+			function renderFields(inv, idx) {
+				// Dynamic fields — render whatever fields exist in the invoice object
+				const fields = [
+					{ key: 'vendor_name', label: 'Vendor Name', type: 'text' },
+					{
+						key: 'vendor_gstin',
+						label: 'Vendor GSTIN',
+						type: 'text',
+						validate: (v) =>
+							/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(v || '')
+								? ''
+								: 'Invalid GSTIN format',
+					},
+					{ key: 'buyer_gstin', label: 'Buyer GSTIN', type: 'text' },
+					{ key: 'invoice_number', label: 'Invoice Number', type: 'text' },
+					{ key: 'invoice_date', label: 'Invoice Date', type: 'text' },
+					{
+						key: 'taxable_value_total',
+						label: 'Taxable Value',
+						type: 'number',
+					},
+					{ key: 'cgst', label: 'CGST (₹)', type: 'number' },
+					{ key: 'sgst', label: 'SGST (₹)', type: 'number' },
+					{ key: 'igst', label: 'IGST (₹)', type: 'number' },
+					{ key: 'invoice_total', label: 'Invoice Total (₹)', type: 'number' },
+					{
+						key: 'transaction_type',
+						label: 'Transaction Type',
+						type: 'select',
+						options: ['intrastate', 'interstate', ''],
+					},
+				];
+
+				return (
+					`<div class="fields-grid">` +
+					fields
+						.map((f) => {
+							const val = inv[f.key] ?? '';
+							const err = f.validate ? f.validate(String(val)) : '';
+							if (f.type === 'select') {
+								return `<div class="field-group">
+        <label>${f.label}</label>
+        <select id="f-${idx}-${f.key}" onchange="fieldChange(${idx},'${f.key}',this.value)">
+          ${(f.options || []).map((o) => `<option value="${o}" ${val === o ? 'selected' : ''}>${o || '— select —'}</option>`).join('')}
+        </select>
+      </div>`;
+							}
+							return `<div class="field-group">
+      <label>${f.label}</label>
+      <input type="${f.type}" id="f-${idx}-${f.key}" value="${val}" class="${err ? 'error' : ''}"
+             oninput="fieldChange(${idx},'${f.key}',this.value)">
+      ${err ? `<span class="hint">⚠ ${err}</span>` : ''}
+      ${
+				inv.back_calculated &&
+				(f.key === 'cgst' ||
+					f.key === 'sgst' ||
+					f.key === 'igst' ||
+					f.key === 'taxable_value_total')
+					? `<span class="hint">📐 Back-calculated: ${inv.back_calc_note || ''}</span>`
+					: ''
+			}
+    </div>`;
+						})
+						.join('') +
+					`</div>`
+				);
+			}
+
+			function renderLineItems(inv, idx) {
+				if (!inv.line_items || inv.line_items.length === 0) return '';
+				return `<div class="line-items">
+    <div style="font-size:12px;font-weight:600;color:#5F5E5A;margin-bottom:6px">LINE ITEMS</div>
+    <table>
+      <thead><tr><th>Description</th><th>HSN</th><th>Qty</th><th>Rate (₹)</th><th>Taxable (₹)</th><th>GST%</th><th>GST (₹)</th></tr></thead>
+      <tbody>
+        ${inv.line_items
+					.map(
+						(li, li_idx) => `<tr>
+          <td><input value="${li.description || ''}" oninput="lineChange(${idx},${li_idx},'description',this.value)"></td>
+          <td><input value="${li.hsn_sac || ''}"     oninput="lineChange(${idx},${li_idx},'hsn_sac',this.value)"    style="width:70px"></td>
+          <td><input type="number" value="${li.quantity || ''}"     oninput="lineChange(${idx},${li_idx},'quantity',this.value)"    style="width:60px"></td>
+          <td><input type="number" value="${li.unit_price || ''}"   oninput="lineChange(${idx},${li_idx},'unit_price',this.value)"  style="width:80px"></td>
+          <td><input type="number" value="${li.taxable_value || ''}"oninput="lineChange(${idx},${li_idx},'taxable_value',this.value)"style="width:90px"></td>
+          <td><input type="number" value="${li.gst_rate || ''}"     oninput="lineChange(${idx},${li_idx},'gst_rate',this.value)"    style="width:50px"></td>
+          <td><input type="number" value="${li.gst_amount || ''}"   oninput="lineChange(${idx},${li_idx},'gst_amount',this.value)"  style="width:80px"></td>
+        </tr>`,
+					)
+					.join('')}
+      </tbody>
+    </table>
+  </div>`;
+			}
+
+			function renderIssues(inv) {
+				if (!inv.issues || inv.issues.length === 0) return '';
+				return `<div class="issues">
+    ${inv.issues.map((i) => `<div class="issue-item">⚠ ${i}</div>`).join('')}
+  </div>`;
+			}
+
+			// ── Interactivity ─────────────────────────────────────────────────────────────
+			function toggleCard(idx) {
+				const body = document.getElementById(`body-${idx}`);
+				body.classList.toggle('open');
+			}
+
+			function fieldChange(idx, key, value) {
+				currentInvoices[idx][key] =
+					isNaN(value) || value === '' ? value : parseFloat(value);
+			}
+
+			function lineChange(idx, li_idx, key, value) {
+				currentInvoices[idx].line_items[li_idx][key] =
+					isNaN(value) || value === '' ? value : parseFloat(value);
+			}
+
+			async function saveEdits(idx) {
+				if (!currentJobId) return;
+				try {
+					const r = await fetch(
+						`${API}/extract/result/${currentJobId}/invoice/${idx}`,
+						{
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(currentInvoices[idx]),
+						},
+					);
+					const d = await r.json();
+					currentInvoices[idx] = d.invoice;
+					showToast('Saved ✓');
+					renderInvoices(currentInvoices);
+				} catch (e) {
+					showToast('Save failed', true);
+				}
+			}
+
+			function markReviewed(idx) {
+				currentInvoices[idx].human_reviewed = true;
+				currentInvoices[idx].needs_review = false;
+				renderInvoices(currentInvoices);
+				saveEdits(idx);
+			}
+
+			// ── Export ────────────────────────────────────────────────────────────────────
+			async function exportTally() {
+				const r = await fetch(`${API}/export/tally`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ invoices: currentInvoices }),
+				});
+				download(await r.blob(), 'tally_import.xml');
+			}
+
+			async function exportBusy() {
+				const r = await fetch(`${API}/export/busy`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ invoices: currentInvoices }),
+				});
+				download(await r.blob(), 'busy_purchase_register.xlsx');
+			}
+
+			async function exportBank() {
+				if (!bankData) return;
+				const r = await fetch(`${API}/export/bank`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						transactions: bankData.transactions,
+						meta: bankData.meta,
+					}),
+				});
+				download(await r.blob(), 'bank_statement.xlsx');
+			}
+
+			function download(blob, name) {
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = name;
+				a.click();
+				URL.revokeObjectURL(url);
+			}
+
+			// ── Bank Upload ───────────────────────────────────────────────────────────────
+			async function uploadBank(file) {
+				if (!file) return;
+				const fd = new FormData();
+				fd.append('file', file);
+
+				document.getElementById('bank-progress').style.display = '';
+				document.getElementById('bank-results').style.display = 'none';
+				document.getElementById('bank-empty').style.display = 'none';
+				document.getElementById('bank-fill').style.width = '5%';
+
+				const r = await fetch(`${API}/bank/upload`, {
+					method: 'POST',
+					body: fd,
+				});
+				const d = await r.json();
+				bankJobId = d.job_id;
+				pollBankJob();
+			}
+
+			async function pollBankJob() {
+				const r = await fetch(`${API}/bank/status/${bankJobId}`);
+				const d = await r.json();
+				const pct =
+					d.total_chunks > 0
+						? Math.round((d.chunks_done / d.total_chunks) * 90) + 5
+						: 10;
+				document.getElementById('bank-fill').style.width = pct + '%';
+				document.getElementById('bank-status').textContent =
+					`Chunk ${d.chunks_done} of ${d.total_chunks}`;
+
+				if (d.status === 'done') {
+					const res = await fetch(`${API}/bank/result/${bankJobId}`);
+					bankData = await res.json();
+					renderBank(bankData);
+					refreshTokens();
+					setTimeout(
+						() =>
+							(document.getElementById('bank-progress').style.display = 'none'),
+						1500,
+					);
+				} else if (d.status !== 'error') {
+					setTimeout(pollBankJob, 3000);
+				}
+			}
+
+			function renderBank(data) {
+				document.getElementById('bank-results').style.display = '';
+				document.getElementById('tx-count').textContent =
+					data.transactions.length;
+
+				// Meta
+				const m = data.meta || {};
+				document.getElementById('bank-meta').innerHTML = [
+					['Account Holder', m.account_holder],
+					['Account Number', m.account_number],
+					['Bank', m.bank_name],
+					['Period', m.statement_period],
+					['Opening Bal', '₹' + fmt(m.opening_balance)],
+					['Closing Bal', '₹' + fmt(m.closing_balance)],
+				]
+					.map(
+						([l, v]) =>
+							`<div><div class="m-label">${l}</div><div class="m-val">${v || '—'}</div></div>`,
+					)
+					.join('');
+
+				// Summary
+				document.getElementById('bank-summary').innerHTML = `
+    <div class="s-box"><div class="s-label">Total Credits</div><div class="s-val credit">₹${fmt(data.total_credits)}</div></div>
+    <div class="s-box"><div class="s-label">Total Debits</div><div class="s-val debit">₹${fmt(data.total_debits)}</div></div>
+    <div class="s-box"><div class="s-label">Transactions</div><div class="s-val">${data.transactions.length}</div></div>
+  `;
+
+				// Table
+				document.getElementById('tx-body').innerHTML = data.transactions
+					.map(
+						(tx) => `
+    <tr class="${tx.credit ? 'credit-row' : tx.debit ? 'debit-row' : ''}">
+      <td>${tx.date || '—'}</td>
+      <td>${tx.narration || '—'}</td>
+      <td><span class="badge" style="background:#F1EFE8;color:#444">${tx.mode || '—'}</span></td>
+      <td style="font-size:11px;color:#888780">${tx.reference || '—'}</td>
+      <td style="color:#8B0000;font-weight:${tx.debit ? '600' : '400'}">${tx.debit ? '₹' + fmt(tx.debit) : ''}</td>
+      <td style="color:#0F6E56;font-weight:${tx.credit ? '600' : '400'}">${tx.credit ? '₹' + fmt(tx.credit) : ''}</td>
+      <td>${tx.balance != null ? '₹' + fmt(tx.balance) : '—'}</td>
+    </tr>
+  `,
+					)
+					.join('');
+			}
+
+			// ── Utils ─────────────────────────────────────────────────────────────────────
+			function fmt(n) {
+				if (n == null || n === '') return '—';
+				return Number(n).toLocaleString('en-IN', {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2,
+				});
+			}
+
+			function showToast(msg, isErr = false) {
+				const t = document.getElementById('toast');
+				t.textContent = msg;
+				t.style.background = isErr ? '#8B0000' : '#2c2c2a';
+				t.classList.add('show');
+				setTimeout(() => t.classList.remove('show'), 3000);
+			}
+		</script>
+	</body>
+</html>
