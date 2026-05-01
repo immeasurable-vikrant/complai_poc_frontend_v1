@@ -675,9 +675,17 @@
 					<div id="bank-results" style="display: none">
 						<div class="section-header">
 							<h2>Bank Transactions (<span id="tx-count">0</span>)</h2>
-							<button class="btn btn-busy" onclick="exportBank()">
-								⬇ Download Excel
-							</button>
+							<div class="export-btns">
+								<button class="btn btn-tally" onclick="exportBankTally()">
+									⬇ Tally XLSX
+								</button>
+								<button class="btn btn-busy" onclick="exportBankBusy()">
+									⬇ BUSY XLSX
+								</button>
+								<button class="btn btn-ghost" onclick="exportBank()">
+									⬇ Generic Excel
+								</button>
+							</div>
 						</div>
 						<div class="bank-meta" id="bank-meta"></div>
 						<div class="bank-summary" id="bank-summary"></div>
@@ -1109,6 +1117,32 @@
 					}),
 				});
 				download(await r.blob(), 'bank_statement.xlsx');
+			}
+
+			async function exportBankTally() {
+				if (!bankData) return;
+				const r = await fetch(`${API}/export/bank/tally`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						transactions: bankData.transactions,
+						meta: bankData.meta,
+					}),
+				});
+				download(await r.blob(), 'tally_bank_statement.xlsx');
+			}
+
+			async function exportBankBusy() {
+				if (!bankData) return;
+				const r = await fetch(`${API}/export/bank/busy`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						transactions: bankData.transactions,
+						meta: bankData.meta,
+					}),
+				});
+				download(await r.blob(), 'busy_bank_vouchers.xlsx');
 			}
 
 			function download(blob, name) {
