@@ -724,6 +724,7 @@
 			let currentInvoices = [];
 			let bankJobId = null;
 			let bankData = null;
+			let lastRenderedBankChunks = 0;
 
 			// ── Tabs ────────────────────────────────────────────────────────────────────
 			function switchTab(tab) {
@@ -1159,6 +1160,7 @@
 				if (!file) return;
 				const fd = new FormData();
 				fd.append('file', file);
+				lastRenderedBankChunks = 0;
 
 				document.getElementById('bank-progress').style.display = '';
 				document.getElementById('bank-results').style.display = 'none';
@@ -1183,12 +1185,16 @@
 						: 10;
 				document.getElementById('bank-fill').style.width = pct + '%';
 				document.getElementById('bank-status').textContent =
-					`Chunk ${d.chunks_done} of ${d.total_chunks}`;
+					`Page ${d.chunks_done} of ${d.total_chunks}`;
 
-				if (d.status === 'done') {
+				if (d.chunks_done > 0 && d.chunks_done !== lastRenderedBankChunks) {
 					const res = await fetch(`${API}/bank/result/${bankJobId}`);
 					bankData = await res.json();
-					renderBank(bankData);
+					renderBank(bankData, d.status === 'done');
+					lastRenderedBankChunks = d.chunks_done;
+				}
+
+				if (d.status === 'done') {
 					refreshTokens();
 					setTimeout(
 						() =>
@@ -1200,10 +1206,13 @@
 				}
 			}
 
-			function renderBank(data) {
+			function renderBank(data, isDone = false) {
 				document.getElementById('bank-results').style.display = '';
 				document.getElementById('tx-count').textContent =
 					data.transactions.length;
+				document.getElementById('bank-status').textContent = isDone
+					? `Done — ${data.transactions.length} transaction(s) extracted`
+					: `Processed ${data.chunks_done || 0} of ${data.total_chunks || 0} pages — ${data.transactions.length} transaction(s) ready so far`;
 
 				// Meta
 				const m = data.meta || {};
