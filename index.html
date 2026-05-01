@@ -733,6 +733,7 @@
 			// ── Token Bar ────────────────────────────────────────────────────────────────
 			let tokenRefreshInFlight = false;
 			let tokenPollTimer = null;
+			let lastRenderedChunks = 0;
 
 			async function refreshTokens() {
 				if (tokenRefreshInFlight) return;
@@ -796,6 +797,7 @@
 				if (!file) return;
 				const fd = new FormData();
 				fd.append('file', file);
+				lastRenderedChunks = 0;
 
 				document.getElementById('progress-wrap').style.display = '';
 				document.getElementById('invoice-results').style.display = 'none';
@@ -831,13 +833,17 @@
 					document.getElementById('progress-fill').style.width = pct + '%';
 					document.getElementById('status-text').textContent =
 						d.status === 'processing'
-							? `Processing chunk ${d.chunks_done} of ${d.total_chunks}...`
+							? `Processing page ${d.chunks_done} of ${d.total_chunks}...`
 							: d.status === 'queued'
 								? 'Queued, starting...'
 								: d.status;
 
+					if (d.chunks_done > 0 && d.chunks_done !== lastRenderedChunks) {
+						await loadResults(d.status === 'done');
+						lastRenderedChunks = d.chunks_done;
+					}
+
 					if (d.status === 'done') {
-						await loadResults();
 						refreshTokens();
 					} else if (d.status === 'error') {
 						showToast('Error: ' + d.error, true);
@@ -850,22 +856,27 @@
 				}
 			}
 
-			async function loadResults() {
+			async function loadResults(isDone = false) {
 				const r = await fetch(`${API}/extract/result/${currentJobId}`);
 				const d = await r.json();
 				currentInvoices = d.invoices;
 				renderInvoices(currentInvoices);
-				document.getElementById('progress-fill').style.width = '100%';
-				document.getElementById('status-text').textContent =
-					`Done — ${currentInvoices.length} invoice(s) extracted`;
-				setTimeout(
-					() =>
-						(document.getElementById('progress-wrap').style.display = 'none'),
-					2000,
-				);
 				document.getElementById('invoice-results').style.display = '';
 				document.getElementById('inv-count').textContent =
 					currentInvoices.length;
+				if (isDone) {
+					document.getElementById('progress-fill').style.width = '100%';
+					document.getElementById('status-text').textContent =
+						`Done — ${currentInvoices.length} invoice(s) extracted`;
+					setTimeout(
+						() =>
+							(document.getElementById('progress-wrap').style.display = 'none'),
+						2000,
+					);
+				} else {
+					document.getElementById('status-text').textContent =
+						`Processed ${d.chunks_done} of ${d.total_chunks} pages — ${currentInvoices.length} invoice(s) ready so far`;
+				}
 			}
 
 			// ── Render Invoices ───────────────────────────────────────────────────────────
