@@ -793,6 +793,20 @@
 			}
 			refreshTokens().finally(() => scheduleTokenRefresh());
 
+			async function fetchJson(url, options) {
+				const response = await fetch(url, options);
+				let data = {};
+				try {
+					data = await response.json();
+				} catch (e) {
+					data = {};
+				}
+				if (!response.ok) {
+					throw new Error(data.detail || `HTTP ${response.status}`);
+				}
+				return data;
+			}
+
 			// ── Drag & Drop ──────────────────────────────────────────────────────────────
 			function handleDrop(e) {
 				e.preventDefault();
@@ -832,8 +846,7 @@
 			async function pollJob() {
 				if (!currentJobId) return;
 				try {
-					const r = await fetch(`${API}/extract/status/${currentJobId}`);
-					const d = await r.json();
+					const d = await fetchJson(`${API}/extract/status/${currentJobId}`);
 
 					const pct =
 						d.total_chunks > 0
@@ -855,19 +868,26 @@
 					if (d.status === 'done') {
 						refreshTokens();
 					} else if (d.status === 'error') {
+						if (d.chunks_done > 0) {
+							await loadResults(false);
+						}
 						showToast('Error: ' + d.error, true);
+						document.getElementById('status-text').textContent = d.error;
 						document.getElementById('progress-wrap').style.display = 'none';
+						currentJobId = null;
 					} else {
 						setTimeout(pollJob, 3000);
 					}
 				} catch (e) {
-					setTimeout(pollJob, 3000);
+					showToast('Invoice job stopped: ' + e.message, true);
+					document.getElementById('status-text').textContent = e.message;
+					document.getElementById('progress-wrap').style.display = 'none';
+					currentJobId = null;
 				}
 			}
 
 			async function loadResults(isDone = false) {
-				const r = await fetch(`${API}/extract/result/${currentJobId}`);
-				const d = await r.json();
+				const d = await fetchJson(`${API}/extract/result/${currentJobId}`);
 				currentInvoices = d.invoices;
 				renderInvoices(currentInvoices);
 				document.getElementById('invoice-results').style.display = '';
@@ -1167,42 +1187,56 @@
 				document.getElementById('bank-empty').style.display = 'none';
 				document.getElementById('bank-fill').style.width = '5%';
 
-				const r = await fetch(`${API}/bank/upload`, {
+				const d = await fetchJson(`${API}/bank/upload`, {
 					method: 'POST',
 					body: fd,
 				});
-				const d = await r.json();
 				bankJobId = d.job_id;
 				pollBankJob();
 			}
 
 			async function pollBankJob() {
-				const r = await fetch(`${API}/bank/status/${bankJobId}`);
-				const d = await r.json();
-				const pct =
-					d.total_chunks > 0
-						? Math.round((d.chunks_done / d.total_chunks) * 90) + 5
-						: 10;
-				document.getElementById('bank-fill').style.width = pct + '%';
-				document.getElementById('bank-status').textContent =
-					`Page ${d.chunks_done} of ${d.total_chunks}`;
+				try {
+					const d = await fetchJson(`${API}/bank/status/${bankJobId}`);
+					const pct =
+						d.total_chunks > 0
+							? Math.round((d.chunks_done / d.total_chunks) * 90) + 5
+							: 10;
+					document.getElementById('bank-fill').style.width = pct + '%';
+					document.getElementById('bank-status').textContent =
+						`Page ${d.chunks_done} of ${d.total_chunks}`;
 
-				if (d.chunks_done > 0 && d.chunks_done !== lastRenderedBankChunks) {
-					const res = await fetch(`${API}/bank/result/${bankJobId}`);
-					bankData = await res.json();
-					renderBank(bankData, d.status === 'done');
-					lastRenderedBankChunks = d.chunks_done;
-				}
+					if (d.chunks_done > 0 && d.chunks_done !== lastRenderedBankChunks) {
+						bankData = await fetchJson(`${API}/bank/result/${bankJobId}`);
+						renderBank(bankData, d.status === 'done');
+						lastRenderedBankChunks = d.chunks_done;
+					}
 
-				if (d.status === 'done') {
-					refreshTokens();
-					setTimeout(
-						() =>
-							(document.getElementById('bank-progress').style.display = 'none'),
-						1500,
-					);
-				} else if (d.status !== 'error') {
-					setTimeout(pollBankJob, 3000);
+					if (d.status === 'done') {
+						refreshTokens();
+						setTimeout(
+							() =>
+								(document.getElementById('bank-progress').style.display = 'none'),
+							1500,
+						);
+					} else if (d.status === 'error') {
+						if (d.chunks_done > 0) {
+							bankData = await fetchJson(`${API}/bank/result/${bankJobId}`);
+							renderBank(bankData, false);
+						}
+						showToast('Bank job stopped: ' + (d.error || 'Unknown error'), true);
+						document.getElementById('bank-status').textContent =
+							d.error || 'Processing stopped';
+						document.getElementById('bank-progress').style.display = 'none';
+						bankJobId = null;
+					} else {
+						setTimeout(pollBankJob, 3000);
+					}
+				} catch (e) {
+					showToast('Bank job stopped: ' + e.message, true);
+					document.getElementById('bank-status').textContent = e.message;
+					document.getElementById('bank-progress').style.display = 'none';
+					bankJobId = null;
 				}
 			}
 
